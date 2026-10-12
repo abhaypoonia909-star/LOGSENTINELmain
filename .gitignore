@@ -24,3 +24,8 @@ backend/reports/
 /backend.zip
 
 /backend.zip
+
+# Neon local configuration and secrets
+.env.local
+.env.*.local
+node_modules/
