@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogSentinel — Isolated Demo Login</title>
+<script>
+(function () {
+  var theme = 'dark';
+  try { if (localStorage.getItem('ls_theme') === 'light') theme = 'light'; } catch (e) {}
+  document.documentElement.setAttribute('data-theme', theme);
+})();
+</script>
+<style>
+:root {
+  --bg: #050810; --surface: #0f1428; --card: #121830;
+  --border: rgba(0,212,255,0.12); --cyan: #00d4ff; --purple: #7c3aed;
+  --green: #10b981; --amber: #f59e0b; --red: #ef4444;
+  --text: #e2e8f0; --text2: #94a3b8; --muted: #475569;
+  --input-bg: #080c18;
+  --mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  --sans: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  color-scheme: dark;
+}
+html[data-theme="light"] {
+  --bg: #f3f6fb; --surface: #ffffff; --card: #ffffff;
+  --border: rgba(15, 23, 42, 0.14);
+  --text: #0f172a; --text2: #334155; --muted: #64748b;
+  --input-bg: #ffffff;
+  color-scheme: light;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-height: 100vh; background: var(--bg); color: var(--text);
+  font-family: var(--sans); display: flex; align-items: center; justify-content: center;
+  padding: 2rem 1rem;
+}
+.wrap { width: min(560px, 100%); }
+.brand { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan); margin-bottom: 0.7rem; }
+h1 { font-size: 1.55rem; letter-spacing: 0.03em; margin-bottom: 0.45rem; }
+h1 span { color: var(--cyan); }
+.sub { color: var(--text2); font-size: 0.92rem; margin-bottom: 1.1rem; line-height: 1.55; }
+.card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1.45rem;
+}
+.banner-note {
+  background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25);
+  color: var(--text2); border-radius: 8px; padding: 0.7rem 0.8rem; font-size: 0.8rem;
+  line-height: 1.5; margin-bottom: 1rem;
+}
+label { display: block; font-size: 0.75rem; color: var(--text2); margin: 0.75rem 0 0.3rem; font-family: var(--mono); letter-spacing: 0.04em; }
+.top-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.7rem; }
+.theme-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); cursor: pointer; padding: 0; flex-shrink: 0;
+}
+.theme-toggle svg { width: 18px; height: 18px; display: block; }
+html[data-theme="dark"] .theme-icon-sun { display: none; }
+html[data-theme="light"] .theme-icon-moon { display: none; }
+input[type=text], input[type=password] {
+  width: 100%; background: var(--input-bg); border: 1px solid var(--border); color: var(--text);
+  font-family: var(--mono); font-size: 0.9rem; padding: 0.7rem 0.8rem; border-radius: 8px;
+}
+.check { display: flex; gap: 0.55rem; align-items: flex-start; margin: 1rem 0; font-size: 0.82rem; color: var(--text2); }
+button {
+  width: 100%; margin-top: 0.4rem; border: 0; border-radius: 8px; padding: 0.78rem;
+  background: linear-gradient(135deg, var(--cyan), var(--purple)); color: #041018; font-weight: 700; cursor: pointer; font-family: var(--sans);
+}
+button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); margin-top: 0.55rem; }
+button:disabled { opacity: 0.55; cursor: wait; }
+.banner { margin-top: 1rem; padding: 0.75rem 0.85rem; border-radius: 8px; font-size: 0.85rem; display: none; }
+.banner.show { display: block; }
+.banner.ok { background: rgba(16,185,129,0.12); color: var(--green); }
+.banner.err { background: rgba(239,68,68,0.12); color: #fca5a5; }
+.banner.info { background: rgba(0,212,255,0.1); color: var(--cyan); }
+.note { margin-top: 1rem; font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+.links { margin-top: 1.15rem; display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.85rem; }
+.links a { color: var(--cyan); text-decoration: none; }
+code { font-family: var(--mono); color: var(--amber); }
+ol { margin: 0.6rem 0 0 1.1rem; color: var(--text2); font-size: 0.8rem; line-height: 1.55; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top-row">
+      <div class="brand">Isolated demonstration</div>
+      <button type="button" id="themeToggle" class="theme-toggle" aria-label="Switch to Light Mode" title="Switch to Light Mode">
+        <span class="theme-icon theme-icon-moon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 14.5A8.5 8.5 0 1 1 9.5 3 7 7 0 0 0 21 14.5z"></path></svg>
+        </span>
+        <span class="theme-icon theme-icon-sun" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg>
+        </span>
+      </button>
+    </div>
+    <h1>LOG<span>SENTINEL</span> Demo Login</h1>
+    <p class="sub">This page never signs you into the real dashboard and never changes production authentication. Failed attempts and suspicious input are stored as security events.</p>
+    <div class="card">
+      <div class="banner-note">Demonstration only. Five failed passwords from the same browser address create a HIGH brute-force alert. Uploaded-log analysis is not affected.</div>
+      <form id="demoForm">
+        <label for="user">Username</label>
+        <input id="user" name="username" type="text" autocomplete="off" maxlength="256" value="demo">
+        <label for="pass">Password</label>
+        <input id="pass" name="password" type="password" autocomplete="off" maxlength="256">
+        <label class="check">
+          <input id="mitigation" type="checkbox" checked>
+          <span>Optional demo mitigation: temporarily block this browser address on this page only after the failed-login threshold.</span>
+        </label>
+        <button id="submitBtn" type="submit">Try demo login</button>
+        <button id="burstBtn" class="secondary" type="button">Simulate 5 failed attempts</button>
+      </form>
+      <div id="banner" class="banner"></div>
+      <p class="note">Valid isolated demo account: <code>demo</code> / <code>Demo1234</code>. Wrong passwords demonstrate brute-force alerting. Inputs such as <code>OR 1=1</code>, <code>&lt;script&gt;</code>, or <code>../etc/passwd</code> are treated as inert text, stored as evidence, and never executed.</p>
+      <ol>
+        <li>Submit five wrong passwords, or use the burst button.</li>
+        <li>Return to Live Alerts on the dashboard.</li>
+        <li>Confirm severity, source IP, timestamp, and event count from the stored alert.</li>
+      </ol>
+    </div>
+    <div class="links">
+      <a href="/">← Dashboard</a>
+      <a href="/#security-alerts">Open live alerts</a>
+      <a href="/#demo-guide">Guided demonstration</a>
+    </div>
+  </div>
+<script>
+(function () {
+  var KEY = 'ls_theme';
+  function current() {
+    return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  }
+  function apply(theme) {
+    var next = theme === 'light' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem(KEY, next); } catch (e) {}
+    var btn = document.getElementById('themeToggle');
+    if (!btn) return;
+    var label = next === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode';
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('title', label);
+  }
+  apply(current());
+  var themeBtn = document.getElementById('themeToggle');
+  if (themeBtn) {
+    themeBtn.addEventListener('click', function () {
+      apply(current() === 'dark' ? 'light' : 'dark');
+    });
+  }
+
+  var banner = document.getElementById('banner');
+  function say(msg, kind) {
+    banner.textContent = msg;
+    banner.className = 'banner show ' + (kind || 'info');
+  }
+  function api(path, body) {
+    return fetch('/api' + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    });
+  }
+  function payload(overridePass) {
+    return {
+      username: document.getElementById('user').value,
+      password: overridePass != null ? overridePass : document.getElementById('pass').value,
+      mitigation: document.getElementById('mitigation').checked
+    };
+  }
+  document.getElementById('demoForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    api('/demo/login', payload())
+      .then(function (resp) { return resp.json().then(function (j) { return { resp: resp, j: j }; }); })
+      .then(function (x) {
+        say((x.j && x.j.message) || ('HTTP ' + x.resp.status), x.j && x.j.ok ? 'ok' : 'err');
+      })
+      .catch(function () { say('Could not reach the local demo endpoint.', 'err'); })
+      .finally(function () { btn.disabled = false; });
+  });
+  document.getElementById('burstBtn').addEventListener('click', async function () {
+    var btn = this;
+    btn.disabled = true;
+    say('Sending five local failed attempts…', 'info');
+    try {
+      var last = null;
+      for (var i = 0; i < 5; i++) {
+        var resp = await api('/demo/login', payload('wrong-password-' + i));
+        last = await resp.json();
+      }
+      say((last && last.message) ? last.message + ' Open Live Alerts to review the stored HIGH brute-force alert.' : 'Burst finished.', last && last.blocked ? 'err' : 'info');
+    } catch (err) {
+      say('Could not finish the local demonstration.', 'err');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>

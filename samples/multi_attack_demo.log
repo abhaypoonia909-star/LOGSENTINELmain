@@ -1,0 +1,9 @@
+2024-01-15 02:14:33 FAILED ssh root@192.168.1.100 - Failed password attempt
+2024-01-15 02:14:35 FAILED ssh root@192.168.1.100 - Failed password attempt
+2024-01-15 02:14:37 FAILED ssh root@192.168.1.100 - Failed password attempt
+2024-01-15 02:16:04 WARNING port scan: Multiple ports probed from 172.16.0.200
+2024-01-15 02:17:45 INFO apache: 10.0.0.99 GET /../../../etc/passwd HTTP/1.1 403
+2024-01-15 02:17:46 INFO apache: 10.0.0.99 GET /login.php?id=1 OR 1=1 HTTP/1.1 500
+2024-01-15 02:17:50 INFO apache: 10.0.0.99 GET /search?q=<script>alert(1)</script> HTTP/1.1 200
+2024-01-15 02:18:00 INFO apache: 10.0.0.99 GET /shell.php HTTP/1.1 404
+2024-01-15 05:45:22 CRITICAL security: privilege escalation detected uid 1000 to 0

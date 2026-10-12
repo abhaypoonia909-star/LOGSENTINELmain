@@ -1,0 +1,26 @@
+# Secrets — never commit a real environment file
+.env
+backend/.env
+**/.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+backend/venv/
+venv/
+
+# Local runtime data
+backend/*.db
+backend/uploads/
+backend/reports/
+/backend.zip# Temporary local audit files
+/backend/_audit_live_api.py
+/backend/_audit_results.json
+/backend/_audit_runner.py
+/backend/_eval_results.json
+/backend/_sprint_live_api.py
+
+/backend.zip
+
+/backend.zip
