@@ -15,6 +15,7 @@ from services.code_scan_jobs import job_store
 from services.code_scanner import CodeScannerService
 from utils.jwt_utils import require_jwt, owns_or_admin
 from utils.security import save_upload
+from utils.transfer_encoding import TransferDecodeError, read_upload_bytes, request_json_object
 from utils.validators import decode_source_text
 
 code_analysis_bp = Blueprint("code_analysis", __name__)
@@ -145,7 +146,13 @@ def _read_upload():
     ext = Path(upload.filename).suffix.lower()
     if ext not in ALLOWED:
         return None, None, None, (jsonify({"error": f"Unsupported file type '{ext}'. Allowed: {sorted(ALLOWED)}"}), 400)
-    raw = upload.read()
+    # Base64 transport (see utils.transfer_encoding) keeps vulnerable source
+    # files from being blocked by the hosting edge firewall. Size limits below
+    # apply to the decoded bytes.
+    try:
+        raw = read_upload_bytes(upload)
+    except TransferDecodeError as exc:
+        return None, None, None, (jsonify({"error": str(exc)}), 400)
     if not raw or not raw.strip():
         return None, None, None, (jsonify({"error": "Uploaded file is empty."}), 400)
     if len(raw) > Config.CODE_SCAN_MAX_UPLOAD_BYTES:
@@ -290,7 +297,10 @@ def cancel_code_scan_job(job_id: str):
 @code_analysis_bp.post("/code-scan/compare")
 @require_jwt
 def compare_suggested_fix():
-    body = request.get_json(silent=True) or {}
+    try:
+        body = request_json_object()
+    except TransferDecodeError as exc:
+        return jsonify({"error": str(exc)}), 400
     original = body.get("original")
     suggested = body.get("suggested_fix") or body.get("suggested")
     language = (body.get("language") or "text").lower()

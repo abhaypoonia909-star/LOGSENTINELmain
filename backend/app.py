@@ -26,6 +26,7 @@ from routes.incidents import incidents_bp
 from services.security_alerts import SecurityAlertService
 from threat_intelligence.routes import threat_intel_bp
 from utils.runtime_secrets import assert_secure_secrets
+from utils.transfer_encoding import base64_budget, transfer_is_base64
 
 
 limiter = Limiter(key_func=get_remote_address)
@@ -69,10 +70,19 @@ def create_app():
 
     @app.before_request
     def _code_scan_upload_budget():
-        """Code-scan routes use CODE_SCAN_MAX_UPLOAD_BYTES; log uploads stay at MAX_CONTENT_LENGTH."""
+        """Code-scan routes use CODE_SCAN_MAX_UPLOAD_BYTES; log uploads stay at MAX_CONTENT_LENGTH.
+
+        Base64-transported uploads (X-LogSentinel-Transfer: base64) are ~33%
+        larger on the wire, so the request budget grows accordingly. The routes
+        still enforce the original limit on the decoded bytes.
+        """
         path = request.path or ""
+        encoded = transfer_is_base64()
         if path.startswith("/api/code-scan"):
-            request.max_content_length = int(Config.CODE_SCAN_MAX_UPLOAD_BYTES)
+            limit = int(Config.CODE_SCAN_MAX_UPLOAD_BYTES)
+            request.max_content_length = base64_budget(limit) if encoded else limit
+        elif encoded and path in ("/api/analyze", "/api/upload"):
+            request.max_content_length = base64_budget(int(Config.MAX_CONTENT_LENGTH))
 
     @app.get("/")
     def frontend_index():

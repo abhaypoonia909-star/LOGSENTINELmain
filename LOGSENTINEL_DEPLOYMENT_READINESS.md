@@ -8,6 +8,12 @@
 
 This report separates **verified in the repo** from **not verified** (cloud accounts, live Render/Vercel projects, git remotes).
 
+**Update — 15 October 2026 (live `https://logsentinelmain.onrender.com`, Analyze → HTTP 403):**
+- **Root cause (verified against the live site):** Render's built-in edge firewall (Cloudflare WAF, not configurable per service) blocks `POST /api/analyze` and `/api/upload` when the uploaded *log content* contains attack strings such as `../../etc/passwd`. It answers with an HTML "Blocked / 403 - Forbidden" page before Flask runs, so the UI only sees `HTTP 403`. The same request with benign content, or with the file base64-encoded, reaches Flask normally. Routes, JWT, CORS, the `file` form field and the same-origin `location.origin + '/api'` URL were all correct.
+- **Fix (in the app, no settings change):** the browser now sends uploads base64-encoded in the same multipart `file` field with header `X-LogSentinel-Transfer: base64`; `backend/utils/transfer_encoding.py` decodes it in `/api/analyze`, `/api/upload`, `/api/code-scan*` and `/api/code-scan/compare`. The request budget grows by 4/3 only for such requests; decoded bytes are still held to `MAX_UPLOAD_MB` / `CODE_SCAN_MAX_UPLOAD_BYTES`. Requests without the header behave exactly as before. Authentication is unchanged (`require_jwt` still returns 401 first). Tests: `backend/test_transfer_encoding.py`.
+- **Not yet verified live:** the fix must be pushed to GitHub and redeployed by Render before "Use sample → Run Analysis" on the live URL can be confirmed as 200.
+- **Persistence reminder:** the live service runs on SQLite inside the container; a probe account received `id: 1`, confirming the database is recreated on every deploy/restart. Users, analyses, uploads and reports on Render are temporary.
+
 ---
 
 ## 1. Current project status (verified)
