@@ -2923,10 +2923,10 @@ html[data-theme="light"] .scan-progress-track { background: rgba(15,23,42,0.08);
 
           <!-- Drop zone -->
           <div class="upload-zone" id="dropZone">
-            <input type="file" id="logFileInput" accept=".log,.txt,.out,.access,.syslog">
+            <input type="file" id="logFileInput" accept=".log,.txt,.json">
             <span class="upload-icon-big">🗂</span>
             <div class="upload-title">Drop your log file here or click to browse</div>
-            <div class="upload-sub">Accepts: syslog, Apache Combined, Nginx access logs · Max 50 MB</div>
+            <div class="upload-sub">Accepts: .log, .txt, .json — syslog, Apache Combined, Nginx access logs · Max 10 MB</div>
             <div class="upload-filename" id="uploadFilename"></div>
             <div id="logTxtChoice" class="txt-intent-box" style="margin-top:0.85rem">
               <p>This <code>.txt</code> file can contain source code or security logs.</p>
@@ -2936,9 +2936,7 @@ html[data-theme="light"] .scan-progress-track { background: rgba(15,23,42,0.08);
             <div class="upload-supported">
               <span class="upload-tag">.log</span>
               <span class="upload-tag">.txt</span>
-              <span class="upload-tag">.syslog</span>
-              <span class="upload-tag">.access</span>
-              <span class="upload-tag">.out</span>
+              <span class="upload-tag">.json</span>
             </div>
           </div>
 
@@ -3501,6 +3499,59 @@ function getBackendUrl() {
     }
     return "http://127.0.0.1:5000/api";
 }
+
+// ══ UPLOAD TRANSFER ENCODING ═══════════════════════════════════════════
+// Security logs and vulnerable source files legitimately contain attack
+// strings (../../etc/passwd, <script>, ' OR 1=1). Hosting edge firewalls
+// (Render's built-in WAF) block such request bodies with an HTML 403 before
+// Flask runs. Files are therefore sent base64-encoded in the same multipart
+// 'file' field, flagged with this header; backend/utils/transfer_encoding.py
+// decodes them. Nothing about authentication changes.
+const LS_TRANSFER_HEADER = 'X-LogSentinel-Transfer';
+
+function lsBase64FromBlob(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error || new Error('read failed'));
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const comma = result.indexOf(',');
+      resolve(comma >= 0 ? result.slice(comma + 1) : '');
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+/* Returns { body: FormData, headers } for an upload. Falls back to the raw
+   file (no header) if the browser cannot read it, so behaviour matches the
+   pre-encoding version in that case. */
+async function lsUploadRequest(fileOrBlob, filename) {
+  const name = filename || (fileOrBlob && fileOrBlob.name) || 'upload.log';
+  const form = new FormData();
+  try {
+    const encoded = await lsBase64FromBlob(fileOrBlob);
+    if (!encoded) throw new Error('empty');
+    form.append('file', new Blob([encoded], { type: 'text/plain' }), name);
+    const headers = {}; headers[LS_TRANSFER_HEADER] = 'base64';
+    return { body: form, headers: headers };
+  } catch (_) {
+    form.append('file', fileOrBlob, name);
+    return { body: form, headers: {} };
+  }
+}
+
+/* JSON payloads that carry raw code snippets use the same transport. */
+function lsJsonTransferRequest(obj) {
+  const text = JSON.stringify(obj);
+  const bytes = new TextEncoder().encode(text);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  const headers = { 'Content-Type': 'text/plain;charset=UTF-8' };
+  headers[LS_TRANSFER_HEADER] = 'base64';
+  return { body: btoa(binary), headers: headers };
+}
 </script>
 
 <!-- ══ MAIN JAVASCRIPT ════════════════════════════════════════════════════ -->
@@ -3813,12 +3864,14 @@ $('analyzeBtn').addEventListener('click', async () => {
     return;
   }
 
-  const formData = new FormData();
+  let uploadSource, uploadName;
   if (sampleMode) {
-    formData.append('file', new Blob([SAMPLE_LOG], { type: 'text/plain' }), 'sample_threats.log');
+    uploadSource = new Blob([SAMPLE_LOG], { type: 'text/plain' });
+    uploadName = 'sample_threats.log';
   } else {
     if (!selectedFile) { showError('Please select a log file first.'); return; }
-    formData.append('file', selectedFile);
+    uploadSource = selectedFile;
+    uploadName = selectedFile.name;
   }
 
   setAnalyzing(true);
@@ -3841,11 +3894,15 @@ $('analyzeBtn').addEventListener('click', async () => {
 
   let data;
   try {
-    const resp = await (window.LSAuth ? LSAuth.fetch : fetch)(backendUrl + '/analyze', { method: 'POST', body: formData });
+    const upload = await lsUploadRequest(uploadSource, uploadName);
+    const resp = await (window.LSAuth ? LSAuth.fetch : fetch)(backendUrl + '/analyze', { method: 'POST', body: upload.body, headers: upload.headers });
     clearInterval(progressTimer);
     if (!resp.ok) {
       let errMsg = `HTTP ${resp.status}`;
       try { const j = await resp.json(); errMsg = j.error || errMsg; } catch(_) {}
+      if (resp.status === 403 && errMsg === 'HTTP 403') {
+        errMsg = 'HTTP 403 — the hosting firewall blocked this upload before it reached LogSentinel. Reload the page to get the latest version and try again.';
+      }
       throw new Error(errMsg);
     }
     data = await resp.json();
@@ -8207,11 +8264,11 @@ function renderFindingCard(item, idx) {
     btn.disabled = true;
     if (status) status.textContent = 'Scanning…';
     if (results) results.innerHTML = '';
-    const form = new FormData();
-    form.append('file', file);
     try {
+      const upload = await lsUploadRequest(file, file.name);
+      const form = upload.body;
       if (ext === '.zip') {
-        const started = await LSAuth.fetch(getBackendUrl() + '/code-scan/jobs', { method: 'POST', body: form });
+        const started = await LSAuth.fetch(getBackendUrl() + '/code-scan/jobs', { method: 'POST', body: form, headers: upload.headers });
         const job = await started.json().catch(() => ({}));
         if (!started.ok) throw new Error(job.error || ('HTTP ' + started.status));
         activeJob = job.job_id;
@@ -8223,12 +8280,13 @@ function renderFindingCard(item, idx) {
         }
         return;
       }
-      const resp = await LSAuth.fetch(getBackendUrl() + '/code-scan', { method: 'POST', body: form });
+      const resp = await LSAuth.fetch(getBackendUrl() + '/code-scan', { method: 'POST', body: form, headers: upload.headers });
       let data = {};
       try { data = await resp.json(); } catch (_) { data = {}; }
       if (!resp.ok) {
         let msg = data.error || ('HTTP ' + resp.status);
         if (resp.status === 413 && !data.error) msg = 'File exceeds the code-scan upload limit.';
+        if (resp.status === 403 && !data.error) msg = 'HTTP 403 — the hosting firewall blocked this upload before it reached LogSentinel. Reload the page and try again.';
         throw new Error(msg);
       }
       paintResult(data);
@@ -8253,15 +8311,16 @@ function renderFindingCard(item, idx) {
         const note = results.querySelector('[data-compare="' + idx + '"]');
         if (!item || !item.suggested_fix) return;
         try {
+          const compareReq = lsJsonTransferRequest({
+            filename: item.file,
+            language: item.language,
+            original: item.snippet,
+            suggested_fix: item.suggested_fix
+          });
           const resp = await LSAuth.fetch(getBackendUrl() + '/code-scan/compare', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              filename: item.file,
-              language: item.language,
-              original: item.snippet,
-              suggested_fix: item.suggested_fix
-            })
+            headers: compareReq.headers,
+            body: compareReq.body
           });
           const data = await resp.json();
           if (note) note.textContent = (data.note || '') + ' Original matches: ' + data.original_count + '. Suggested-fix matches: ' + data.suggested_count + '.';

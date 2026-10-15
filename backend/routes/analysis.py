@@ -3,6 +3,7 @@ from threat_intelligence.service import ThreatIntelligenceService
 _threat_intel_service = ThreatIntelligenceService()
 from datetime import datetime
 from flask import Blueprint, request, jsonify, g
+from config import Config
 from models import db
 from models.models import UploadedFile, Analysis, Threat, Report
 from services.log_parser import LogParser
@@ -14,6 +15,7 @@ from services.incident_correlation import correlate_incidents
 from utils.validators import validate_log_extension
 from utils.security import save_upload
 from utils.jwt_utils import require_jwt
+from utils.transfer_encoding import TransferDecodeError, read_upload_bytes
 
 analysis_bp = Blueprint("analysis", __name__)
 
@@ -71,7 +73,13 @@ def analyze_log():
     if not validate_log_extension(f.filename):
         return jsonify({"error": "Only .log, .txt, .json files are allowed."}), 400
 
-    raw = f.read()
+    # The browser may base64-encode the file in transit so hosting firewalls do
+    # not block logs that legitimately contain attack strings. The decoded size
+    # is still held to MAX_CONTENT_LENGTH (existing 413 handler).
+    try:
+        raw = read_upload_bytes(f, max_bytes=Config.MAX_CONTENT_LENGTH)
+    except TransferDecodeError as exc:
+        return jsonify({"error": str(exc)}), 400
     if not raw.strip():
         return jsonify({"error": "Uploaded file is empty."}), 400
 

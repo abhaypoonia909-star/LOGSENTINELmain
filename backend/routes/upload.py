@@ -1,9 +1,11 @@
 from flask import Blueprint, request, jsonify, g
+from config import Config
 from models import db
 from models.models import UploadedFile
 from utils.validators import validate_log_extension
 from utils.security import save_upload
 from utils.jwt_utils import require_jwt
+from utils.transfer_encoding import TransferDecodeError, read_upload_bytes
 
 upload_bp = Blueprint("upload", __name__)
 
@@ -16,7 +18,10 @@ def upload_file():
     if not validate_log_extension(f.filename):
         return jsonify({"error": "Only .log, .txt, .json files are allowed."}), 400
 
-    raw = f.read()
+    try:
+        raw = read_upload_bytes(f, max_bytes=Config.MAX_CONTENT_LENGTH)
+    except TransferDecodeError as exc:
+        return jsonify({"error": str(exc)}), 400
     if not raw.strip():
         return jsonify({"error": "Uploaded file is empty."}), 400
 
@@ -28,7 +33,6 @@ def upload_file():
         size_bytes=len(raw),
     )
     db.session.add(record)
-    db.session.commit
     db.session.commit()
 
     return jsonify({
