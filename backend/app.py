@@ -148,4 +148,11 @@ if __name__ == "__main__":
     debug = (os.environ.get("FLASK_DEBUG") or "").strip().lower() in {"1", "true", "yes"}
     host = (os.environ.get("FLASK_RUN_HOST") or "127.0.0.1").strip() or "127.0.0.1"
     port = int(os.environ.get("PORT") or 5000)
+    # Dev convenience only (python app.py): start the laptop's installed Ollama
+    # on 127.0.0.1:11434 if it is not running. Skipped in production/gunicorn,
+    # for non-loopback OLLAMA_BASE_URL, or with OLLAMA_AUTOSTART=0. With the
+    # debug reloader, run it in the child process only.
+    if not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        from utils.ollama_bootstrap import start_background_bootstrap
+        start_background_bootstrap()
     app.run(host=host, port=port, debug=debug)

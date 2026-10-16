@@ -1,12 +1,25 @@
-"""Local Ollama HTTP client. No cloud calls, no API keys."""
+"""Ollama HTTP client. No cloud calls.
+
+Default: the laptop's own Ollama on http://127.0.0.1:11434, no credentials.
+
+Remote mode: when OLLAMA_BASE_URL is not a loopback address (e.g. the Render
+deployment reaching the laptop through backend/tools/ollama_gateway.py behind a
+tunnel), the client requires https:// and sends
+``Authorization: Bearer $OLLAMA_AUTH_TOKEN``. It refuses to talk to a remote
+Ollama without a token so the model API is never used unauthenticated.
+"""
 
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
+
+LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
+AUTH_TOKEN_ENV = "OLLAMA_AUTH_TOKEN"
 
 
 class OllamaUnavailable(Exception):
@@ -21,28 +34,77 @@ class OllamaRequestError(Exception):
     """Ollama returned an empty or unexpected response."""
 
 
+class OllamaConfigError(OllamaRequestError):
+    """Remote OLLAMA_BASE_URL / OLLAMA_AUTH_TOKEN are misconfigured or rejected."""
+
+
 def normalize_base_url(base_url: str) -> str:
     url = (base_url or "").strip().rstrip("/")
     return url or "http://127.0.0.1:11434"
 
 
+def is_loopback_base_url(base_url: str) -> bool:
+    try:
+        host = (urlparse(normalize_base_url(base_url)).hostname or "").lower()
+    except ValueError:
+        return False
+    return host in LOOPBACK_HOSTS
+
+
 class OllamaClient:
-    def __init__(self, base_url: str, timeout: float = 60.0):
+    def __init__(self, base_url: str, timeout: float = 60.0, auth_token: str | None = None):
         self.base_url = normalize_base_url(base_url)
         self.timeout = max(5.0, float(timeout))
+        self.remote = not is_loopback_base_url(self.base_url)
+        token = auth_token if auth_token is not None else os.environ.get(AUTH_TOKEN_ENV, "")
+        self.auth_token = (token or "").strip()
+
+    def _headers(self, json_body: bool) -> dict[str, str]:
+        headers = {"Accept": "application/json"}
+        if json_body:
+            headers["Content-Type"] = "application/json"
+        if self.remote:
+            if not self.base_url.lower().startswith("https://"):
+                raise OllamaConfigError(
+                    "OLLAMA_BASE_URL points at a non-local host but does not use https://. "
+                    "Refusing to send the gateway token in clear text."
+                )
+            if not self.auth_token:
+                raise OllamaConfigError(
+                    "OLLAMA_BASE_URL points at a remote Ollama gateway but %s is not set." % AUTH_TOKEN_ENV
+                )
+            headers["Authorization"] = "Bearer " + self.auth_token
+            # Free tunnel providers may show a browser interstitial; this marks a server call.
+            headers["ngrok-skip-browser-warning"] = "1"
+        return headers
+
+    def _ping_timeout(self) -> float:
+        # A tunnel round trip plus a cold /api/tags can exceed the 5 s local budget.
+        return min(15.0 if self.remote else 5.0, self.timeout)
+
+    @staticmethod
+    def _rejected(exc: urllib.error.HTTPError) -> OllamaConfigError | None:
+        if exc.code in (401, 403):
+            return OllamaConfigError(
+                "The remote Ollama gateway rejected the request (HTTP %d). "
+                "Check that %s on this server matches the gateway token." % (exc.code, AUTH_TOKEN_ENV)
+            )
+        return None
 
     def _request(self, method: str, path: str, payload: dict | None = None, timeout: float | None = None) -> Any:
         url = urljoin(self.base_url + "/", path.lstrip("/"))
         data = None
-        headers = {"Accept": "application/json"}
+        headers = self._headers(json_body=payload is not None)
         if payload is not None:
             data = json.dumps(payload).encode("utf-8")
-            headers["Content-Type"] = "application/json"
         request = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
             with urllib.request.urlopen(request, timeout=timeout or self.timeout) as response:
                 raw = response.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as exc:
+            rejected = self._rejected(exc)
+            if rejected is not None:
+                raise rejected from exc
             body = exc.read().decode("utf-8", errors="replace")
             text = body.lower()
             if exc.code == 404 or "not found" in text or "model" in text and "not found" in text:
@@ -61,7 +123,7 @@ class OllamaClient:
             raise OllamaRequestError("Ollama returned a non-JSON response.") from exc
 
     def ping(self) -> dict[str, Any]:
-        return self._request("GET", "/api/tags", timeout=min(5.0, self.timeout))
+        return self._request("GET", "/api/tags", timeout=self._ping_timeout())
 
     def installed_models(self) -> list[str]:
         payload = self.ping()
@@ -136,7 +198,7 @@ class OllamaClient:
         request = urllib.request.Request(
             url,
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            headers=self._headers(json_body=True),
             method="POST",
         )
         got_text = False
@@ -163,6 +225,9 @@ class OllamaClient:
                     if isinstance(data, dict) and data.get("done"):
                         break
         except urllib.error.HTTPError as exc:
+            rejected = self._rejected(exc)
+            if rejected is not None:
+                raise rejected from exc
             body = exc.read().decode("utf-8", errors="replace")
             text = body.lower()
             if exc.code == 404 or "not found" in text:
