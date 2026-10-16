@@ -17,6 +17,7 @@ if load_dotenv is not None:
         "OPENAI_MODEL",
         "OLLAMA_BASE_URL",
         "OLLAMA_MODEL",
+        "OLLAMA_AUTH_TOKEN",
         "DATABASE_URL",
         "JWT_SECRET",
     ):

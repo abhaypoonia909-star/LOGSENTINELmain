@@ -77,6 +77,45 @@ python app.py
 
 7. Sign in on the LogSentinel page and open the AI assistant.
 
+### Automatic start on Windows (development)
+
+`python app.py` now checks `http://127.0.0.1:11434/api/tags` in the background.
+If Ollama is not answering it starts the **already installed** `ollama.exe`
+(`ollama serve`, default loopback binding, no console window), waits up to
+`OLLAMA_AUTOSTART_WAIT_SECONDS` (default 45; a cold start takes about 25–30 s) for the API, then confirms
+`llama3.2:1b` is installed. Console lines are prefixed `[LogSentinel][Ollama]`.
+
+It never runs `ollama pull`, never changes `OLLAMA_HOST`, and refuses to start
+Ollama if `OLLAMA_HOST` points at a non-loopback address. It is skipped under
+gunicorn/Render, when `OLLAMA_BASE_URL` is not loopback, when
+`AI_PROVIDER=openai`, or when `OLLAMA_AUTOSTART=0`. If the model is missing it
+prints the exact `ollama pull llama3.2:1b` command for you to run.
+
+### Using the laptop's Ollama from the Render website
+
+Render cannot reach `127.0.0.1:11434` (that address is Render's own container),
+and Ollama has no authentication, so it is never exposed directly. Instead:
+
+```
+Browser -> Flask on Render (JWT) -> https://<ngrok domain> + Bearer token
+       -> laptop: ngrok -> tools/ollama_gateway.py (127.0.0.1:11435) -> Ollama 127.0.0.1:11434
+```
+
+One command on the laptop (keep the window open while you want chat to work):
+
+```cmd
+backend\tools\connect_ollama.cmd
+```
+
+First run: it offers to download the portable ngrok zip (official URL, no
+installer), asks for your free ngrok authtoken and free static domain, creates
+the gateway token in `%LOCALAPPDATA%\LogSentinel\` (outside the repo) and prints
+it once. It then self-tests the public URL (no token -> 401, token -> model list)
+and prints the two Render variables: `OLLAMA_BASE_URL=https://<domain>` and
+`OLLAMA_AUTH_TOKEN=<token>`. The gateway forwards only `GET /api/tags` and
+`POST /api/chat`, caps bodies at 1 MB and rate-limits; `/api/pull`, `/api/delete`
+etc. are blocked. `--show-token` prints the token again.
+
 ## Offline operation
 
 After the model is on disk:
@@ -103,6 +142,9 @@ invent findings or switch to a cloud model.
 | `OLLAMA_NUM_PREDICT` | No | `80` | General questions. Short/social uses 48; analysis 120; long-answer 512. |
 | `OLLAMA_KEEP_ALIVE` | No | `60m` | How long Ollama keeps the model loaded after a reply. |
 | `OLLAMA_HISTORY_TURNS` | No | `6` | Recent chat turns sent with the next question. |
+| `OLLAMA_AUTOSTART` | No | `1` | Dev only (`python app.py`). `0` disables starting the installed Ollama automatically. |
+| `OLLAMA_AUTH_TOKEN` | Only with a remote `OLLAMA_BASE_URL` | empty | Bearer token for `backend/tools/ollama_gateway.py`. Required (with `https://`) whenever `OLLAMA_BASE_URL` is not loopback. |
+| `OLLAMA_AUTOSTART_WAIT_SECONDS` | No | `45` | How long the dev bootstrap waits for `/api/tags` after starting Ollama (1–120). |
 | `OPENAI_API_KEY` | Only if `AI_PROVIDER=openai` | empty | Not used by the default local assistant. |
 
 No Ollama API key is required.
